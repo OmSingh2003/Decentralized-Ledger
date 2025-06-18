@@ -529,6 +529,75 @@ func (bc *Blockchain) GetConsensus() consensus.Consensus {
 	return bc.consensus
 }
 
+// CompactDB compacts the BoltDB file to reduce fragmentation and file size.
+// This function should be used periodically to optimize database performance.
+// 
+// The compaction process:
+// 1. Closes the current database connection
+// 2. Opens the database for compaction
+// 3. Creates a temporary compacted database file
+// 4. Copies all data from the original to the compacted file
+// 5. Replaces the original file with the compacted version
+// 6. Reopens the database connection
+//
+// Note: This operation may take some time for large databases and requires
+// sufficient disk space for the temporary file.
+func (bc *Blockchain) CompactDB() error {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
+	// Close the existing DB connection before compaction
+	if err := bc.db.Close(); err != nil {
+		return fmt.Errorf("failed to close DB before compaction: %v", err)
+	}
+
+	// Open the database in read-write mode for compaction
+	db, err := bbolt.Open(dbFile, 0o600, nil)
+	if err != nil {
+		return fmt.Errorf("cannot open blockchain db for compaction: %v", err)
+	}
+	defer db.Close() // Ensure the temporary DB connection is closed
+
+	fmt.Println("Starting database compaction...")
+	// BoltDB's Compact method requires an output path for the compacted DB
+	// A common pattern is to compact to a temporary file, then replace the original
+	tempDbFile := dbFile + ".tmp"
+	tempDb, err := bbolt.Open(tempDbFile, 0600, nil)
+	if err != nil {
+		return fmt.Errorf("cannot create temporary db file for compaction: %v", err)
+	}
+	defer os.Remove(tempDbFile) // Clean up temp file on exit
+	defer tempDb.Close()
+
+	err = bbolt.Compact(tempDb, db, 0) // Compact from original DB to temporary DB
+	if err != nil {
+		return fmt.Errorf("failed to compact database: %v", err)
+	}
+
+	// Close both database connections before file operations
+	if err := db.Close(); err != nil {
+		return fmt.Errorf("failed to close source database: %v", err)
+	}
+	if err := tempDb.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary database: %v", err)
+	}
+
+	// Replace the original database file with the compacted one
+	if err := os.Rename(tempDbFile, dbFile); err != nil {
+		return fmt.Errorf("failed to replace original db with compacted db: %v", err)
+	}
+
+	fmt.Println("Database compaction complete.")
+
+	// Reopen the main DB connection for the Blockchain instance
+	db, err = bbolt.Open(dbFile, 0o600, nil)
+	if err != nil {
+		return fmt.Errorf("cannot reopen blockchain db after compaction: %v", err)
+	}
+	bc.db = db // Update the Blockchain instance's DB connection
+	return nil
+}
+
 // CloseDB closes the database
 func (bc *Blockchain) CloseDB() error {
 	bc.mu.Lock()
