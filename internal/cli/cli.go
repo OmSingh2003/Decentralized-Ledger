@@ -32,6 +32,7 @@ func (cli *CLI) printUsage() {
 	fmt.Println("  reindexutxo - Rebuilds the UTXO set")
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT - Send AMOUNT of coins from FROM address to TO")
 	fmt.Println("  stake -address ADDRESS -amount AMOUNT - Add stake for PoS validator")
+	fmt.Println("  compactdb - Compacts the database to reduce fragmentation and file size")
 }
 
 // validateArgs validates command line arguments
@@ -53,6 +54,7 @@ func (cli *CLI) Run() error {
 	reindexUTXOCmd := flag.NewFlagSet("reindexutxo", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	stakeCmd := flag.NewFlagSet("stake", flag.ExitOnError)
+	compactDBCmd := flag.NewFlagSet("compactdb", flag.ExitOnError)
 
 	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
 	sendFrom := sendCmd.String("from", "", "Source wallet address")
@@ -94,6 +96,11 @@ func (cli *CLI) Run() error {
 		}
 	case "stake":
 		err := stakeCmd.Parse(os.Args[2:])
+		if err != nil {
+			return err
+		}
+	case "compactdb":
+		err := compactDBCmd.Parse(os.Args[2:])
 		if err != nil {
 			return err
 		}
@@ -140,6 +147,10 @@ func (cli *CLI) Run() error {
 			return fmt.Errorf("address and amount are required")
 		}
 		return cli.addStake(*stakeAddress, *stakeAmount)
+	}
+
+	if compactDBCmd.Parsed() {
+		return cli.compactDB()
 	}
 
 	return nil
@@ -291,5 +302,21 @@ func (cli *CLI) addStake(address string, amount int64) error {
 	}
 
 	fmt.Printf("Successfully added stake of %d for validator %s\n", amount, address)
+	return nil
+}
+
+// compactDB compacts the blockchain database to reduce fragmentation
+func (cli *CLI) compactDB() error {
+	if cli.bc == nil {
+		return fmt.Errorf("blockchain is not initialized")
+	}
+
+	fmt.Println("Compacting blockchain database...")
+	err := cli.bc.CompactDB()
+	if err != nil {
+		return fmt.Errorf("failed to compact database: %v", err)
+	}
+
+	fmt.Println("Database compaction completed successfully.")
 	return nil
 }
