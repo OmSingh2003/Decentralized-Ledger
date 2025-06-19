@@ -46,9 +46,8 @@ func main() {
             }
             
             // Validate wallet exists
-            minerWallet := wallet.LoadWallet(*initAddress)
-            if minerWallet == nil {
-                fmt.Printf("Error: Wallet not found for address: %s\n", *initAddress)
+            if !wallet.ValidateAddress(*initAddress) {
+                fmt.Printf("Error: Invalid address format: %s\n", *initAddress)
                 return
             }
             
@@ -86,15 +85,14 @@ func main() {
 
 // createBlockchain creates a new blockchain with a genesis block and rewards the miner
 func createBlockchain(minerAddress string) (*blockchain.Blockchain, error) {
-    // Load the wallet for the miner - this will be checked again in CreateBlockchain
-    // but we do it here first to provide a better error message
-    minerWallet := wallet.LoadWallet(minerAddress)
-    if minerWallet == nil {
-        return nil, fmt.Errorf("wallet not found for address: %s", minerAddress)
+    // Validate the miner address format
+    if !wallet.ValidateAddress(minerAddress) {
+        return nil, fmt.Errorf("invalid address format: %s", minerAddress)
     }
     
     // Create a new blockchain with the genesis block
-    bc, err := blockchain.CreateBlockchain(minerWallet)
+    // Note: The actual wallet loading with password will be handled by the CLI commands
+    bc, err := blockchain.CreateBlockchain(nil) // Pass nil for now, will be updated later
     if err != nil {
         return nil, fmt.Errorf("failed to create blockchain: %v", err)
     }
