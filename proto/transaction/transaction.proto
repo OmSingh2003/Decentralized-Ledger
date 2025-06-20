@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package transaction;
+
+option go_package = "github.com/OmSingh2003/decentralized-ledger/proto/transaction";
+
+// TxInput represents a transaction input
+message TxInput {
+  bytes txid = 1;       // The ID of the transaction containing the output to spend
+  int32 vout = 2;       // The index of the output in the transaction
+  bytes signature = 3;  // The digital signature that proves ownership
+  bytes pub_key = 4;    // The public key of the sender
+}
+
+// TxOutput represents a transaction output
+message TxOutput {
+  int32 value = 1;          // The amount of coins
+  bytes pub_key_hash = 2;   // The hash of the public key (address) of the recipient
+}
+
+// Transaction represents a blockchain transaction
+message Transaction {
+  bytes id = 1;                    // Transaction ID
+  repeated TxInput vin = 2;        // Transaction inputs
+  repeated TxOutput vout = 3;      // Transaction outputs
+}
+
+// TxOutputList is a wrapper for serializing arrays of TxOutput
+message TxOutputList {
+  repeated TxOutput outputs = 1;
+}
+

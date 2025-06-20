@@ -3,13 +3,13 @@ package block
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/gob"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/OmSingh2003/decentralized-ledger/internal/transaction"
+	"github.com/OmSingh2003/decentralized-ledger/pkg/serialization"
 )
 
 // Block represents a block in the blockchain
@@ -114,28 +114,99 @@ func (b *Block) Serialize() ([]byte, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	var result bytes.Buffer
-	encoder := gob.NewEncoder(&result)
-
-	err := encoder.Encode(b)
-	if err != nil {
-		return nil, err
+	// Convert transactions to serializable format
+	var serializableTransactions []serialization.SerializableTransaction
+	for _, tx := range b.Transactions {
+		serTx := serialization.SerializableTransaction{
+			ID: tx.ID,
+		}
+		
+		// Convert inputs
+		for _, input := range tx.Vin {
+			serTx.Vin = append(serTx.Vin, serialization.SerializableTxInput{
+				Txid:      input.Txid,
+				Vout:      input.Vout,
+				Signature: input.Signature,
+				PubKey:    input.PubKey,
+			})
+		}
+		
+		// Convert outputs
+		for _, output := range tx.Vout {
+			serTx.Vout = append(serTx.Vout, serialization.SerializableTxOutput{
+				Value:      output.Value,
+				PubKeyHash: output.PubKeyHash,
+			})
+		}
+		
+		serializableTransactions = append(serializableTransactions, serTx)
 	}
 
-	return result.Bytes(), nil
+	data := serialization.SerializeBlock(
+		b.Timestamp,
+		serializableTransactions,
+		b.PrevBlockHash,
+		b.Hash,
+		b.Nonce,
+		b.Bits,
+		b.ValidatorPubKey,
+		b.Signature,
+	)
+
+	if data == nil {
+		return nil, fmt.Errorf("failed to serialize block")
+	}
+
+	return data, nil
 }
 
 // DeserializeBlock deserializes a block
 func DeserializeBlock(d []byte) (*Block, error) {
-	var block Block
-
-	decoder := gob.NewDecoder(bytes.NewReader(d))
-	err := decoder.Decode(&block)
+	blockData, err := serialization.DeserializeBlock(d)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to deserialize block: %v", err)
 	}
-
-	return &block, nil
+	
+	// Convert back to Block struct
+	block := &Block{
+		Timestamp:       blockData.Timestamp,
+		PrevBlockHash:   blockData.PrevBlockHash,
+		Hash:            blockData.Hash,
+		Nonce:           blockData.Nonce,
+		Bits:            blockData.Bits,
+		ValidatorPubKey: blockData.ValidatorPubKey,
+		Signature:       blockData.Signature,
+		mu:              sync.RWMutex{}, // Initialize the mutex
+	}
+	
+	// Convert transactions
+	for _, serTx := range blockData.Transactions {
+		tx := &transaction.Transaction{
+			ID: serTx.ID,
+		}
+		
+		// Convert inputs
+		for _, serInput := range serTx.Vin {
+			tx.Vin = append(tx.Vin, transaction.TxInput{
+				Txid:      serInput.Txid,
+				Vout:      serInput.Vout,
+				Signature: serInput.Signature,
+				PubKey:    serInput.PubKey,
+			})
+		}
+		
+		// Convert outputs
+		for _, serOutput := range serTx.Vout {
+			tx.Vout = append(tx.Vout, transaction.TxOutput{
+				Value:      serOutput.Value,
+				PubKeyHash: serOutput.PubKeyHash,
+			})
+		}
+		
+		block.Transactions = append(block.Transactions, tx)
+	}
+	
+	return block, nil
 }
 
 // IntToHex converts an int64 to a byte array
@@ -247,7 +318,7 @@ func (b *Block) GetHash() []byte {
 // GetNonce returns the nonce of the block in a thread-safe manner
 func (b *Block) GetNonce() int {
 	b.mu.RLock()
-	defer b.mu.Unlock()
+	defer b.mu.RUnlock()
 	return b.Nonce
 }
 

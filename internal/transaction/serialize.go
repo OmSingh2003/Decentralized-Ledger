@@ -1,33 +1,43 @@
 package transaction
 
 import (
-    "bytes"
-    "encoding/gob"
     "log"
+    "github.com/OmSingh2003/decentralized-ledger/pkg/serialization"
 )
 
 // SerializeOutputs serializes TxOutput array
 func SerializeOutputs(outs []TxOutput) []byte {
-    var buff bytes.Buffer
-
-    enc := gob.NewEncoder(&buff)
-    err := enc.Encode(outs)
-    if err != nil {
-        log.Panic(err)
+    // Convert to serializable format
+    var serOutputs []serialization.SerializableTxOutput
+    for _, out := range outs {
+        serOutputs = append(serOutputs, serialization.SerializableTxOutput{
+            Value:      out.Value,
+            PubKeyHash: out.PubKeyHash,
+        })
     }
-
-    return buff.Bytes()
+    
+    data := serialization.SerializeOutputs(serOutputs)
+    if data == nil {
+        log.Panic("failed to serialize outputs")
+    }
+    
+    return data
 }
 
 // DeserializeOutputs deserializes TxOutput array
 func DeserializeOutputs(data []byte) []TxOutput {
-    var outputs []TxOutput
-
-    dec := gob.NewDecoder(bytes.NewReader(data))
-    err := dec.Decode(&outputs)
+    serOutputs, err := serialization.DeserializeOutputs(data)
     if err != nil {
         log.Panic(err)
     }
-
+    
+    var outputs []TxOutput
+    for _, serOut := range serOutputs {
+        outputs = append(outputs, TxOutput{
+            Value:      serOut.Value,
+            PubKeyHash: serOut.PubKeyHash,
+        })
+    }
+    
     return outputs
 }

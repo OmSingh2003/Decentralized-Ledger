@@ -4,12 +4,12 @@ import (
     "bytes"
     "crypto/rand"
     "crypto/sha256"
-    "encoding/gob"
     "encoding/hex"
     "fmt"
     "log"
     
     "github.com/OmSingh2003/decentralized-ledger/internal/wallet"
+    "github.com/OmSingh2003/decentralized-ledger/pkg/serialization"
 )
 
 // Rest of the file content remains the same...
@@ -52,15 +52,31 @@ func (tx *Transaction) Hash() []byte {
 
 // serializeTransaction serializes a transaction
 func serializeTransaction(tx Transaction) ([]byte, error) {
-    var encoded bytes.Buffer
-    enc := gob.NewEncoder(&encoded)
-    
-    err := enc.Encode(tx)
-    if err != nil {
-        return nil, fmt.Errorf("failed to encode transaction: %v", err)
+    // Convert to serializable format
+    var serVin []serialization.SerializableTxInput
+    for _, input := range tx.Vin {
+        serVin = append(serVin, serialization.SerializableTxInput{
+            Txid:      input.Txid,
+            Vout:      input.Vout,
+            Signature: input.Signature,
+            PubKey:    input.PubKey,
+        })
     }
     
-    return encoded.Bytes(), nil
+    var serVout []serialization.SerializableTxOutput
+    for _, output := range tx.Vout {
+        serVout = append(serVout, serialization.SerializableTxOutput{
+            Value:      output.Value,
+            PubKeyHash: output.PubKeyHash,
+        })
+    }
+    
+    data := serialization.SerializeTransaction(tx.ID, serVin, serVout)
+    if data == nil {
+        return nil, fmt.Errorf("failed to encode transaction")
+    }
+    
+    return data, nil
 }
 
 // IsCoinbase checks whether the transaction is coinbase

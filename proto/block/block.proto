@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package block;
+
+import "proto/transaction/transaction.proto";
+
+option go_package = "github.com/OmSingh2003/decentralized-ledger/proto/block";
+
+// Block represents a block in the blockchain
+message Block {
+  int64 timestamp = 1;                              // Records when block was created/mined
+  repeated transaction.Transaction transactions = 2; // stores Transactions
+  bytes prev_block_hash = 3;                        // Stores the Hash of previous Block in the chain
+  bytes hash = 4;                                   // Stores the Hash of current block in the chain
+  int32 nonce = 5;                                  // Number used in proof of work
+  int64 bits = 6;                                   // Stores the difficulty target bits for this block
+  bytes validator_pub_key = 7;                      // Public key of the validator who signed this block
+  bytes signature = 8;                              // Signature of the block by the validator
+}
+
